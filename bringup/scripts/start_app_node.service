@@ -1,0 +1,16 @@
+[Unit]
+Description=start node
+After=NetworkManager.service time-sync.target
+
+[Service]
+Type=simple
+User=ubuntu
+Restart=always
+RestartSec=30
+KillMode=mixed
+ExecStart=/bin/zsh -c 'source home/ubuntu/.zshrc; ros2 launch bringup bringup.launch.py;'
+#StandardOutput=null
+#StandardError=null
+
+[Install]
+WantedBy=multi-user.target
