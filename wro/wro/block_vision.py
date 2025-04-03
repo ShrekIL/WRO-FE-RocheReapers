@@ -44,7 +44,7 @@ def recognize_green_block(image):
         return image  # Return the original image even if an error occurs
 
 if __name__ == "__main__":
-    image_file = "2test_screenshot_02.04.2025.png"  # Path to uploaded image
+    image_file = r"C:\Users\vercillg\WRO\WRO-FE-RocheReapers\wro\img\2test_screenshot_02.04.2025.png"
 
     img = cv2.imread(image_file)
 
