@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 
 # --- Green HSV ranges ---
-lower_green = np.array([60, 30, 50])  # Example adjustment
-upper_green = np.array([80, 255, 255]) # Example adjustment
+lower_green = np.array([60, 30, 50]) 
+upper_green = np.array([80, 255, 255])
 
 # --- Refined Red HSV ranges ---
 lower_red1 = np.array([0, 100, 100])
@@ -11,16 +11,14 @@ upper_red1 = np.array([10, 255, 255])
 lower_red2 = np.array([160, 100, 100])
 upper_red2 = np.array([180, 255, 255])
 
-# --- Filtering parameters ---
 MIN_BLOCK_AREA = 1000
 ASPECT_RATIO_RANGE = (0.3, 3.0)
 MIN_SOLIDITY = 0.7
-MIN_RED_SATURATION = 150  # Adjust as needed
-MIN_RED_VALUE = 100  # adjust as needed
+MIN_RED_SATURATION = 150 
+MIN_RED_VALUE = 100
 
-def recognize_green_block(image):
-    found_green = False
-    found_red = False
+def recognize_blocks(image):
+    found_blocks = []  # List to store detected blocks (color, center, width, height, area)
     try:
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -38,8 +36,11 @@ def recognize_green_block(image):
                     hull_area = cv2.contourArea(hull)
                     solidity = float(area) / hull_area if hull_area > 0 else 0
                     if solidity > MIN_SOLIDITY:
+                        center_x = x + w // 2
+                        center_y = y + h // 2
+                        found_blocks.append({"color": "green", "center": (center_x, center_y), "width": w, "height": h, "area": area, "bounding_box": (x, y, w, h)})
                         cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                        found_green = True
+                        cv2.circle(image, (center_x, center_y), 5, (0, 0, 0), -1)
 
         # --- Red detection ---
         mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
@@ -57,19 +58,21 @@ def recognize_green_block(image):
                     hull_area = cv2.contourArea(hull)
                     solidity = float(area) / hull_area if hull_area > 0 else 0
                     if solidity > MIN_SOLIDITY:
-                        # --- Check saturation and value ---
                         mask = np.zeros_like(mask_red)
                         cv2.drawContours(mask, [contour], -1, 255, cv2.FILLED)
                         mean_saturation = np.mean(hsv[:, :, 1][mask == 255])
                         mean_value = np.mean(hsv[:, :, 2][mask == 255])
                         if mean_saturation > MIN_RED_SATURATION and mean_value > MIN_RED_VALUE:
+                            center_x = x + w // 2
+                            center_y = y + h // 2
+                            found_blocks.append({"color": "red", "center": (center_x, center_y), "width": w, "height": h, "area": area, "bounding_box": (x, y, w, h)})
                             cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                            found_red = True
+                            cv2.circle(image, (center_x, center_y), 5, (0, 0, 0), -1)
 
-        return image, found_green, found_red
+        return image, found_blocks
     except Exception as e:
         print(f"An error occurred: {e}")
-        return image, found_green, found_red
+        return image, []
 
 if __name__ == "__main__":
     cap = cv2.VideoCapture(0)
@@ -85,12 +88,18 @@ if __name__ == "__main__":
             print("Error: Could not read frame.")
             break
 
-        processed_frame, green_found, red_found = recognize_green_block(frame)
+        processed_frame, detected_blocks = recognize_blocks(frame)
 
-        if green_found:
-            cv2.putText(processed_frame, "Left", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-        elif red_found:
-            cv2.putText(processed_frame, "Right", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+        # Sort blocks by area
+        detected_blocks.sort(key=lambda block: block["area"], reverse=True)
+
+        if detected_blocks:
+            closest_block = detected_blocks[0]
+            print(f"Closest {closest_block['color']} block center: x={closest_block['center'][0]}, y={closest_block['center'][1]}, width={closest_block['width']}, height={closest_block['height']}")
+            cv2.putText(processed_frame, f"Closest {closest_block['color']}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+
+            for block in detected_blocks[1:]: # Process other blocks (not prioritized in text)
+                print(f"Other {block['color']} block center: x={block['center'][0]}, y={block['center'][1]}, width={block['width']}, height={block['height']}")
 
         cv2.imshow("Real-time Block Recognition", processed_frame)
 
