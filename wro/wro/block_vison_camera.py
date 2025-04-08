@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 
 # --- Green HSV ranges ---
-lower_green = np.array([60, 50, 30])
-upper_green = np.array([80, 255, 255])
+lower_green = np.array([60, 30, 50])  # Example adjustment
+upper_green = np.array([80, 255, 255]) # Example adjustment
 
 # --- Refined Red HSV ranges ---
 lower_red1 = np.array([0, 100, 100])
