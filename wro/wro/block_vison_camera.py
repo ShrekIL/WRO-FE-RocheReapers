@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 # --- Green HSV ranges ---
-lower_green = np.array([60, 30, 50]) 
+lower_green = np.array([60, 30, 50])
 upper_green = np.array([80, 255, 255])
 
 # --- Refined Red HSV ranges ---
@@ -14,11 +14,11 @@ upper_red2 = np.array([180, 255, 255])
 MIN_BLOCK_AREA = 1000
 ASPECT_RATIO_RANGE = (0.3, 3.0)
 MIN_SOLIDITY = 0.7
-MIN_RED_SATURATION = 150 
+MIN_RED_SATURATION = 150
 MIN_RED_VALUE = 100
 
 def recognize_blocks(image):
-    found_blocks = []  # List to store detected blocks (color, center, width, height, area)
+    found_blocks = []  # List to store detected blocks (color, center, width, height, area, bounding_box)
     try:
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -74,37 +74,83 @@ def recognize_blocks(image):
         print(f"An error occurred: {e}")
         return image, []
 
+def get_nearest_block_data(image):
+    try:
+        processed_frame, detected_blocks = recognize_blocks(image.copy())
+
+        if not detected_blocks:
+            print("No blocks detected in the image.")
+            return None, processed_frame  # Return None and processed frame
+
+        # Sort blocks by area to get the largest (assuming largest is nearest)
+        detected_blocks.sort(key=lambda block: block["area"], reverse=True)
+
+        nearest_block = detected_blocks[0]
+
+        # You can choose which data you want to return
+        nb = {
+            "color": nearest_block["color"],
+            "center": nearest_block["center"],
+            "width": nearest_block["width"],
+            "height": nearest_block["height"],
+            "area": nearest_block["area"],
+            "bounding_box": nearest_block["bounding_box"]
+        }
+
+        return nb["color"], nb["center"], (nb["width"], nb["height"]), processed_frame
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None, image  # Return None and original image
+
 if __name__ == "__main__":
-    cap = cv2.VideoCapture(0)
+    # --- Capture a single image from the camera ---
+    cap = cv2.VideoCapture(0)  # Use 0 for default camera, or the camera index
 
     if not cap.isOpened():
         print("Error: Could not open camera.")
         exit()
 
-    while True:
-        ret, frame = cap.read()
+    ret, frame = cap.read()
+    cap.release()  # Release the camera immediately after capturing
 
-        if not ret:
-            print("Error: Could not read frame.")
-            break
+    if not ret:
+        print("Error: Could not read frame from camera.")
+        exit()
 
-        processed_frame, detected_blocks = recognize_blocks(frame)
+    nearest_block_data = get_nearest_block_data(frame)
 
-        # Sort blocks by area
-        detected_blocks.sort(key=lambda block: block["area"], reverse=True)
+    if nearest_block_data is not None:
+        nearest_block_color, center, dimensions, processed_frame = nearest_block_data
+        width, height = dimensions
+        center_x, center_y = center
 
-        if detected_blocks:
-            closest_block = detected_blocks[0]
-            print(f"Closest {closest_block['color']} block center: x={closest_block['center'][0]}, y={closest_block['center'][1]}, width={closest_block['width']}, height={closest_block['height']}")
-            cv2.putText(processed_frame, f"Closest {closest_block['color']}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+        if nearest_block_color:
+            print(f"Nearest block color: {nearest_block_color}")
+        print(f"Nearest block center (x, y): ({center_x}, {center_y})")
+        print(f"Nearest block width: {width}")
+        print(f"Nearest block height: {height}")
 
-            for block in detected_blocks[1:]: # Process other blocks (not prioritized in text)
-                print(f"Other {block['color']} block center: x={block['center'][0]}, y={block['center'][1]}, width={block['width']}, height={block['height']}")
+        # Optional: Display the image with only the nearest block highlighted
+        try:
+            if processed_frame is not None:
+                bx, by, bw, bh = None, None, None, None
+                for block in recognize_blocks(frame.copy())[1]:
+                    if block["center"] == center:
+                        bx, by, bw, bh = block["bounding_box"]
+                        break
 
-        cv2.imshow("Real-time Block Recognition", processed_frame)
+                if bx is not None:
+                    color = (0, 255, 0) if nearest_block_color == "green" else (0, 0, 255)
+                    cv2.rectangle(processed_frame, (bx, by), (bx + bw, by + bh), color, 2)
+                    cv2.circle(processed_frame, center, 5, (0, 0, 0), -1)
+                    cv2.putText(processed_frame, f"Nearest {nearest_block_color}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.imshow("Block Recognition from Camera Image", processed_frame)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        except Exception as e:
+            print(f"Error displaying image: {e}")
+    else:
+        cv2.imshow("Block Recognition from Camera Image", frame)
 
-    cap.release()
+    cv2.waitKey(0)  # Wait until a key is pressed
     cv2.destroyAllWindows()
