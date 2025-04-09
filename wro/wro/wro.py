@@ -26,13 +26,17 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from nav_msgs.msg import Odometry
 from sklearn.cluster import DBSCAN
 from sklearn.linear_model import RANSACRegressor
+import time
 
 from .trajectory import Trajectory
 from .icp import icp
 from .utils import *
-from .vision import *
+from .block_vison_camera import *
 from .config import config
 from .obstacle import Obstacle
+from .lidar import lidar_to_obstacles
+from .path_planing import generate_trajectories
+from .block_vison_camera import recognize_blocks_nearest
 
 
 class OjbectTrackingNode(Node):
@@ -57,10 +61,10 @@ class OjbectTrackingNode(Node):
         self.servo_state_pub = self.create_publisher(SetPWMServoState, 'ros_robot_controller/pwm_servo/set_state', 1)
         self.get_logger().info('\033[1;32m%s\033[0m' % 'start')
 
-        #self.image_sub = self.create_subscription(Image, '/ascamera/camera_publisher/rgb0/image', self.image_callback, 1)
+        self.image_sub = self.create_subscription(Image, '/ascamera/camera_publisher/rgb0/image', self.image_callback, 1)
 
-        qos = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
-        self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, qos)
+        #qos = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
+        #self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, qos)
 
         self.last_laser_scan = None
         
@@ -71,10 +75,8 @@ class OjbectTrackingNode(Node):
         self.position = [0,0]
         self.position_history = []
 
-        plt.figure(figsize=(6,10))
-
         # m/s
-        self.speed = 0
+        self.velocity = 0
         self.dx = 0 #todo
         self.dy = 0 #todo
         
@@ -87,6 +89,10 @@ class OjbectTrackingNode(Node):
         
         #todo
         self.dt = 0
+        self.time = time.time()
+        
+        plt.figure() # Create figure for animation
+
 
         
     def log(self, msg):
@@ -106,12 +112,24 @@ class OjbectTrackingNode(Node):
         self.get_logger().info(f'Publishing servo state: {data}')
         self.servo_state_pub.publish(data)
 
+    def update_location(self):
+        self.dt = time.time() - self.time
+        self.time = time.time()
+        
+        self.dx = self.velocity * cos(self.rotation)
+        self.dy = self.velocity * sin(self.rotation)
+        self.rotation += self.omega * self.dt
+        
+        self.position[0] += self.dx * self.dt
+        self.position[1] += self.dy * self.dt
 
     def steer(self, direction):
         """
         direction: 1 = left, -1 = right
         """
         direction = max(-1, min(1, direction))
+
+        self.omega = direction / 6.5
 
         max_steer = 600
         norm_dir = 1500
@@ -121,6 +139,8 @@ class OjbectTrackingNode(Node):
         self.publish_servo_state([int(new_angle)])
         self.get_logger().info(f'Steering to {new_angle}')
 
+        self.update_location()
+
     def set_speed(self, speed):
         """
         speed: -1 to 1
@@ -128,9 +148,12 @@ class OjbectTrackingNode(Node):
         speed = - speed
         speed = max(-1, min(1, speed))
         
+        self.velocity = speed
+        
         t = Twist()
         t.linear.x = float(speed)
         self.mecanum_pub.publish(t)
+        self.update_location()
         
     def calculate_dynamic_window(self):
         """
@@ -195,21 +218,30 @@ class OjbectTrackingNode(Node):
         self.get_logger().info('\033[1;32m%s\033[0m' % 'image callback')
         rgb_image = cv.cvtColor(rgb_image, cv.COLOR_BGR2RGB)
         
-        res = detect_block(rgb_image)
-        color, (x, y) = res
-        self.log(f"color: {color} x: {x} y: {y}")     
+        res = recognize_blocks_nearest(rgb_image)
+        print(res)
+                
+        color, (centerX, centerY), (width, height) = res
         
-        direction = x / 640 - 0.5
+        self.update_location()
+
+        self.set_speed(0.3)
         
-        self.set_speed(1)
-        
-        self.steer(-1)
-        
-        cv.imshow("test", rgb_image)
+        if width < 30:
+            goalX = 0.5
+            diff = (goalX - centerX) * 2
+            self.steer(diff)            
+            
+        elif width < 50:
+            goalX = 0.9
+            diff = (goalX - centerX) * 2
+            self.steer(diff)            
+
 
     def lidar_callback(self, lidar_data):
         #self.get_logger().info('\033[1;32m%s\033[0m' % 'lidar callback')
-
+        plt.cla()
+        
         angles = np.linspace(lidar_data.angle_min, lidar_data.angle_max, len(lidar_data.ranges))
         distances = np.array(lidar_data.ranges)
         distances = np.where(np.isnan(distances), 0, distances)
@@ -220,69 +252,50 @@ class OjbectTrackingNode(Node):
         mask = distances != 0
         distances = distances[mask]
         angles = angles[mask]
-                
+        
         oy = -np.cos(angles) * distances
         ox = np.sin(angles) * distances
         scan = np.column_stack((ox, oy))
+
+        plt.scatter(ox, oy, label=f"Lidar data")
+
+        obstacles = lidar_to_obstacles(scan)
+        trajectories: list[Trajectory] = generate_trajectories(
+            [0, 0],
+            0,
+            self.velocity,
+            self.omega
+        )
         
-        if os.path.exists("/home/kuttelr/liadar.npy"):
-            return
-        np.save("/home/kuttelr/liadar.npy", scan)
+        goal = np.array([0,1]) - np.array(self.position)
         
-        # Step 1: Cluster points into separate lines using DBSCAN
-        dbscan = DBSCAN(eps=0.2, min_samples=2)
-        labels = dbscan.fit_predict(scan)
-
-        unique_labels = set(labels)
-
-        # Step 2: Fit RANSAC for each cluster
-        plt.cla()
+        for o in obstacles:
+            o.plot()
         
-        lines = []
-
-        for label in unique_labels:
-            if label == -1:  # Ignore noise points
-                continue
-            
-            # Get points belonging to the current cluster
-            cluster_points = scan[labels == label]
-            X_cluster = cluster_points[:, 0].reshape(-1, 1)
-            Y_cluster = cluster_points[:, 1]
-
-            # Fit RANSAC to the cluster
-            ransac = RANSACRegressor()
-            ransac.fit(X_cluster, Y_cluster)
-            
-            # Get the fitted line parameters
-            m = ransac.estimator_.coef_[0]
-            b = ransac.estimator_.intercept_
-
-            # Generate fitted line points
-            X_fit = np.linspace(min(X_cluster), max(X_cluster), 100).reshape(-1, 1)
-            Y_fit = ransac.predict(X_fit)
-
-            lines.append([X_fit, Y_fit])
-
-            # Plot cluster points and fitted line
-            plt.scatter(X_cluster, Y_cluster, label=f"Cluster {label}")
-            plt.plot(X_fit, Y_fit, linewidth=2)
-
-        plt.scatter([0], [0], label="Robot", c="red")
-        plt.legend()
-        plt.xlabel("X")
-        plt.xlim((-3,3))
-        plt.ylim((-3,3))
-        plt.ylabel("Y")
-        plt.title("RANSAC Line Fitting for Multiple LiDAR Clusters")
+        trajectories[0].plot()
+        
+        print(f"P: {self.position} R: {self.rotation}")
+        print(f"V: {trajectories[0].v} R: {trajectories[0].omega}")
         
         
+        #self.steer(trajectories[0].omega)
+        #self.set_speed(-trajectories[0].v / 3)
         
-        plt.pause(0.0001)
+        plt.scatter(goal[0], goal[1], marker='*', s=200, c="orange", label="Goal", zorder=5)
 
-        self.log(f" {lines}")
-
-        self.last_laser_scan = scan
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.axis("equal")
+        plt.xlabel("X (m)")
+        plt.ylabel("Y (m)")
         
+        # Dynamically adjust limits or set fixed ones
+        plt.grid(True)
+        
+        plt.pause(0.001)
+
+        self.update_location()
+
+
 def main():
     node = OjbectTrackingNode('object_tracking')
     rclpy.spin(node)

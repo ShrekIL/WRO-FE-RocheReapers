@@ -22,6 +22,8 @@ setup(
     entry_points={
         'console_scripts': [
             'images = wro.wro:main',
+            'stop = wro.stop:main',
+            'kreis = wro.kreis:main',
         ],
     },
 )

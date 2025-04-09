@@ -1,5 +1,9 @@
 import numpy as np
-from trajectory import Trajectory
+try:
+    from .trajectory import Trajectory
+except:
+    from trajectory import Trajectory
+
 from typing import List
 
 max_rotation = 1
@@ -61,24 +65,6 @@ def generate_trajectories(
 
     possible_trajectories = []
 
-    # Ensure there's a range to sample from
-    if v_upper_dw < v_lower_dw:
-         # This might happen if deceleration is needed but v_min limits it
-         # A simple fix is to allow staying at v_min if accelerating down would cross it
-         # Or handle based on specific robot behavior (e.g., force stop)
-         # For now, we might just allow the lower bound if upper is less
-         v_upper_dw = v_lower_dw # Or perhaps better: just use current_v if it's within bounds? Adjust logic as needed.
-         print(f"Warning: Velocity dynamic window inverted ({v_lower_dw:.2f} > {v_upper_dw:.2f}). Clamping.")
-         if v_lower_dw > v_max: v_lower_dw = v_max # Further clamp if needed
-         if v_upper_dw < v_min: v_upper_dw = v_min
-
-    if omega_upper_dw < omega_lower_dw:
-         omega_upper_dw = omega_lower_dw # Similar clamping logic for omega
-         print(f"Warning: Omega dynamic window inverted ({omega_lower_dw:.2f} > {omega_upper_dw:.2f}). Clamping.")
-         if omega_lower_dw > omega_max: omega_lower_dw = omega_max
-         if omega_upper_dw < omega_min: omega_upper_dw = omega_min
-
-
     # 2. Sample velocities within the dynamic window
     # Use linspace to ensure bounds are included and sampling is even
     v_range = np.linspace(v_lower_dw, v_upper_dw, v_samples) if v_samples > 1 else [v_upper_dw] # Handle edge case of 1 sample
@@ -125,5 +111,4 @@ def generate_trajectories(
          possible_trajectories.append(stop_traj)
 
 
-    print(f"Generated {len(possible_trajectories)} trajectories from v:[{v_lower_dw:.2f}, {v_upper_dw:.2f}], w:[{omega_lower_dw:.2f}, {omega_upper_dw:.2f}]")
     return possible_trajectories

@@ -1,9 +1,12 @@
 from matplotlib import pyplot as plt
 import numpy as np
 
-from block_obstacle import BlockObstacle
-from wall_obstacle import WallObstacle
-
+try:
+    from .block_obstacle import BlockObstacle
+    from .wall_obstacle import WallObstacle
+except:
+    from block_obstacle import BlockObstacle
+    from wall_obstacle import WallObstacle    
 
 class Trajectory:
     def __init__(self, current_pos, current_rotation, v, omega, time_horizon=1.5, sim_steps=20):
