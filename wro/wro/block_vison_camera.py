@@ -18,7 +18,7 @@ MIN_RED_SATURATION = 150
 MIN_RED_VALUE = 100
 
 def recognize_blocks(image):
-    found_blocks = []  # List to store detected blocks (color, center, width, height, area, bounding_box)
+    found_blocks = []
     try:
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -80,39 +80,34 @@ def get_nearest_block_data(image):
 
         if not detected_blocks:
             print("No blocks detected in the image.")
-            return None, processed_frame  # Return None and processed frame
+            return None, processed_frame 
 
-        # Sort blocks by area to get the largest (assuming largest is nearest)
         detected_blocks.sort(key=lambda block: block["area"], reverse=True)
 
         nearest_block = detected_blocks[0]
 
-        # You can choose which data you want to return
         nb = {
             "color": nearest_block["color"],
             "center": nearest_block["center"],
             "width": nearest_block["width"],
             "height": nearest_block["height"],
-            "area": nearest_block["area"],
-            "bounding_box": nearest_block["bounding_box"]
         }
 
         return nb["color"], nb["center"], (nb["width"], nb["height"]), processed_frame
 
     except Exception as e:
         print(f"An error occurred: {e}")
-        return None, image  # Return None and original image
-
+        return None, image 
+    
 if __name__ == "__main__":
-    # --- Capture a single image from the camera ---
-    cap = cv2.VideoCapture(0)  # Use 0 for default camera, or the camera index
+    cap = cv2.VideoCapture(0) 
 
     if not cap.isOpened():
         print("Error: Could not open camera.")
         exit()
 
     ret, frame = cap.read()
-    cap.release()  # Release the camera immediately after capturing
+    cap.release()  
 
     if not ret:
         print("Error: Could not read frame from camera.")
@@ -131,7 +126,6 @@ if __name__ == "__main__":
         print(f"Nearest block width: {width}")
         print(f"Nearest block height: {height}")
 
-        # Optional: Display the image with only the nearest block highlighted
         try:
             if processed_frame is not None:
                 bx, by, bw, bh = None, None, None, None
@@ -152,5 +146,5 @@ if __name__ == "__main__":
     else:
         cv2.imshow("Block Recognition from Camera Image", frame)
 
-    cv2.waitKey(0)  # Wait until a key is pressed
+    cv2.waitKey(0)
     cv2.destroyAllWindows()
