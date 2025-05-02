@@ -40,6 +40,22 @@ We made the following hardware changes:
 #### Dimensions
 
 #### Lidar mounting
+At first we tried to mount the lidar using hot glue. This didn't work well.
+Due to the walls only beeing 10cm high and the lidar beeing mounted 5cm from the ground, we had 5cm of tolerance on a 3m distance.
+If we calculate the anlge tolerance with trigonometry we get the following:
+
+$sin(Tolerance) * 3 = 0.05m$
+
+If we solve this equation we arrive at:
+
+$Tolerance\approx +-0.9549\textdegree$
+
+We realized, that this is basically impossible to acchieve with hot glue, we decided to design our own mounting mechanism.
+For this we 3d printed a mount, that can be adjusted using 3 screws.
+
+See following picture:
+
+**TODO** insert picture
 
 #### Lego differential
 
@@ -47,11 +63,8 @@ We made the following hardware changes:
 
 ### 3. Software Overview
 
-#### Driving Strategy and Path Planning
-
----
-
-### 4. Driving Strategy and Planning
+Our software is based on states based on simple rules.
+See the state machine section for more info.
 
 #### State Machine
 
@@ -70,12 +83,21 @@ stateDiagram-v2
 
     Parking --> [*]
 ```
+**Explanation of the states**:
 
+**Ready**: The state right after powering the robot on. It waits and does nothing until the start button is pressed. Then the robot switches to the moving state.
+
+**Moving**: This is the main state of the robot. Here the robot just uses the lidar data to move around the 3x3 area.
+It is also counting its laps.
+
+
+#### Driving Strategy and Path Planning
 
 For the Path Planning we used an approach based on the paper "The Dynamic Window Approach to Collision Avoidance"[1].
 
-
 [1]: https://www.ri.cmu.edu/pub_files/pub1/fox_dieter_1997_1/fox_dieter_1997_1.pdf
+
+#### Obstacle detection with OpenCV
 
 ---
 
