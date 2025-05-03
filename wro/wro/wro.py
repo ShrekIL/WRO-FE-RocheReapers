@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # encoding: utf-8
-# ????(color tracking)
 import os
 import os.path
 import cv2 as cv
@@ -8,49 +7,36 @@ import math
 import queue
 import rclpy
 import matplotlib.pyplot as plt
-from math import cos, sin, radians, pi
+from math import cos, sin, radians, pi, atan2, tan # Added atan2, tan
 import time
 import threading
 import numpy as np
-import sdk.pid as pid
-import sdk.common as common
+
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 from std_srvs.srv import SetBool, Trigger
-from interfaces.srv import SetPoint, SetFloat64
-from ros_robot_controller_msgs.msg import MotorsState, SetPWMServoState, PWMServoState
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy
-from nav_msgs.msg import Odometry
-from sklearn.cluster import DBSCAN
-from sklearn.linear_model import RANSACRegressor
-import time
+from ros_robot_controller_msgs.msg import SetPWMServoState, PWMServoState # Simplified imports
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy
 
-from .trajectory import Trajectory
-from .icp import icp
-from .utils import *
-from .block_vison_camera import *
-from .config import config
-from .obstacle import Obstacle
-from .lidar import lidar_to_obstacles
-from .path_planing import generate_trajectories
-from .block_vison_camera import recognize_blocks_nearest
+from .lidar import LidarResult
+from .control import Control
+
+
 
 
 class OjbectTrackingNode(Node):
     def __init__(self, name):
-        rclpy.init()
+        self.__node_name = name
         super().__init__(name, allow_undeclared_parameters=True, automatically_declare_parameters_from_overrides=True)
-        self.name = name
+        self.get_logger().info(f"Initializing node '{self.__node_name}'...")
+
         self.set_callback = False
-        self.color_picker = None
-        self.tracker = None
         self.is_running = False
-        self.threshold = 0.1
-        self.dist_threshold = 0.3
-        self.lock = threading.RLock()
+
+        self.lock = threading.RLock() # General lock
         self.image_sub = None
         self.result_image = None
         self.image_height = None
@@ -59,189 +45,91 @@ class OjbectTrackingNode(Node):
 
         self.mecanum_pub = self.create_publisher(Twist, '/controller/cmd_vel', 1)
         self.servo_state_pub = self.create_publisher(SetPWMServoState, 'ros_robot_controller/pwm_servo/set_state', 1)
-        self.get_logger().info('\033[1;32m%s\033[0m' % 'start')
 
-        self.image_sub = self.create_subscription(Image, '/ascamera/camera_publisher/rgb0/image', self.image_callback, 1)
+        lidar_qos = QoSProfile(
+             depth=1,
+             reliability=QoSReliabilityPolicy.BEST_EFFORT, # Or RELIABLE
+             durability=QoSDurabilityPolicy.VOLATILE)
+        self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, lidar_qos)
 
-        #qos = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
-        #self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, qos)
+#        self.position = np.array([0.5, 0.5]) # Initial estimated position (e.g., near corner)
+#        self.rotation = np.radians(45.0) # Initial estimated orientation
+        self.pose_lock = threading.Lock() # Lock specifically for pose variables
+        self.position_history = [] # Keep if needed for plotting paths
 
-        self.last_laser_scan = None
-        
-        self.pos_lock = threading.Lock()
-        self.rel_to_odom_pos = None
-        self.rel_to_odom_rot = None
-        
-        self.position = [0,0]
-        self.position_history = []
+        # Last commanded/intended controls (used for MCL prediction)
+        self.current_velocity = 0.0
+        self.current_steering_angle = 0.0 # In radians
 
-        # m/s
-        self.velocity = 0
-        self.dx = 0 #todo
-        self.dy = 0 #todo
-        
-        self.rotation = 0
-        
-        # turn rad/s
-        self.omega = 0
-        
-        self.goal = np.array([0,1])
-        
-        #todo
-        self.dt = 0
-        self.time = time.time()
-        
+
+        # --- Visualization Setup ---
         plt.figure() # Create figure for animation
+        plt.ion() # Turn on interactive mode
+        plt.show() # Show the plot window
 
+        self.get_logger().info('\033[1;32mNode initialized successfully.\033[0m')
 
+        self.control = Control(self.get_logger())        
         
+        # delta time in seconds
+        self.dt = 0
+        self.prev_time = time.time()
+        
+#        self.rot_drift = 0
+
+
     def log(self, msg):
         self.get_logger().info('\033[1;32m%s\033[0m' % msg)
 
-    def get_node_state(self, request, response):
-        response.success = True
-        return response
-    
     def publish_servo_state(self, positions):
+        # Ensure positions are integers
+        int_positions = [int(p) for p in positions]
         servo_state = PWMServoState()
-        servo_state.id = [3]
-        servo_state.position = positions
+        servo_state.id = [3] # servo ID 3 for steering
+        servo_state.position = int_positions # Use integer positions
         data = SetPWMServoState()
         data.state = [servo_state]
-        data.duration = 0.02
-        self.get_logger().info(f'Publishing servo state: {data}')
+        data.duration = 0.02 # Use float for duration
+        # self.get_logger().info(f'Publishing servo state: {data}') # Can be verbose
         self.servo_state_pub.publish(data)
-
-    def update_location(self):
-        self.dt = time.time() - self.time
-        self.time = time.time()
-        
-        self.dx = self.velocity * cos(self.rotation)
-        self.dy = self.velocity * sin(self.rotation)
-        self.rotation += self.omega * self.dt
-        
-        self.position[0] += self.dx * self.dt
-        self.position[1] += self.dy * self.dt
 
     def steer(self, direction):
         """
-        direction: 1 = left, -1 = right
+        Sets the steering command based on direction (-1 to 1).
         """
-        direction = max(-1, min(1, direction))
+        direction = max(-1.0, min(1.0, float(direction))) # Ensure float and clamp
 
-        self.omega = direction / 6.5
+        self.current_steering_angle = direction
 
-        max_steer = 600
-        norm_dir = 1500
-        
-        new_angle = norm_dir + direction * max_steer
-        
-        self.publish_servo_state([int(new_angle)])
-        self.get_logger().info(f'Steering to {new_angle}')
-
-        self.update_location()
+        max_steer_offset = 600 # Servo range offset
+        norm_dir_servo = 1500 # Servo center value
+        new_angle_servo = norm_dir_servo + direction * max_steer_offset
+        self.publish_servo_state([int(new_angle_servo)]) # Send command to servo
 
     def set_speed(self, speed):
         """
-        speed: -1 to 1
+        Sets the linear velocity command.
         """
-        speed = - speed
-        speed = max(-1, min(1, speed))
-        
-        self.velocity = speed
-        
-        t = Twist()
-        t.linear.x = float(speed)
-        self.mecanum_pub.publish(t)
-        self.update_location()
-        
-    def calculate_dynamic_window(self):
-        """
-        Calculates the dynamic window
-        Returns:
-            [v_min, v_max, yaw_rate_min, yaw_rate_max]
-        """
-        # Dynamic window from robot specification
-        Vs = [config.min_speed, config.max_speed,
-            -config.max_yaw_rate, config.max_yaw_rate]
+        with self.lock: # Use general lock or a specific control lock
+            # Assuming speed argument IS the desired velocity in m/s
+            # Clamp if necessary based on robot limits
+            self.current_velocity = speed
+            # self.get_logger().info(f"Commanded velocity: {self.current_velocity:.2f} m/s")
 
-        # Dynamic window from motion model
-        Vd = [self.speed - config.max_accel * self.dt,
-            self.speed + config.max_accel * self.dt,
-            self.omega - config.max_delta_yaw_rate * self.dt,
-            self.omega + config.max_delta_yaw_rate * self.dt]
-
-        #  [v_min, v_max, yaw_rate_min, yaw_rate_max]
-        dw = [max(Vs[0], Vd[0]), min(Vs[1], Vd[1]),
-            max(Vs[2], Vd[2]), min(Vs[3], Vd[3])]
-        
-        return dw
-    
-    def obstace_cost(self, trajectory: Trajectory, obstacle: Obstacle):
-        dx = 0
-        dy = 0
-        
-        dist = obstacle.get_distance(trajectory)
-        return dist
-
-    def goal_cost(self, trajectory):
-        dx = 0
-        dy = 0
-        
-        error_angle = math.atan2(dy, dx)
-        cost_angle = error_angle - trajectory[-1, 2]
-        cost = abs(math.atan2(math.sin(cost_angle), math.cos(cost_angle)))
-
-        return cost
-
-        
-    def predict_trajectory(self, v, yaw) -> Trajectory:
-        """
-        Predict a trajectory based on input
-        """
-        tr = Trajectory()
-        tr.pos_init = self.position
-
-        dx = 0
-        dy = 0
-        
-        tr.pos = [self.position + dx, self.position + dy]
-
-
-    def dwa_control(self):
-        pass
+            # --- Publish Twist Command ---
+            t = Twist()
+            # Use the *intended* velocity for the command, even if MCL uses a slightly different internal value
+            # The sign convention might need adjustment based on your controller setup
+            t.linear.x = float(speed) # Send original requested speed value
+            self.mecanum_pub.publish(t)
 
     def image_callback(self, ros_image):
-        cv_image = self.bridge.imgmsg_to_cv2(ros_image, "rgb8")
-        rgb_image = np.array(cv_image, dtype=np.uint8)
-        self.image_height, self.image_width = rgb_image.shape[:2]
-        self.get_logger().info('\033[1;32m%s\033[0m' % 'image callback')
-        rgb_image = cv.cvtColor(rgb_image, cv.COLOR_BGR2RGB)
-        
-        res = recognize_blocks_nearest(rgb_image)
-        print(res)
-                
-        color, (centerX, centerY), (width, height) = res
-        
-        self.update_location()
+        pass
 
-        self.set_speed(0.3)
-        
-        if width < 30:
-            goalX = 0.5
-            diff = (goalX - centerX) * 2
-            self.steer(diff)            
-            
-        elif width < 50:
-            goalX = 0.9
-            diff = (goalX - centerX) * 2
-            self.steer(diff)            
+    
 
 
-    def lidar_callback(self, lidar_data):
-        #self.get_logger().info('\033[1;32m%s\033[0m' % 'lidar callback')
-        plt.cla()
-        
+    def plot_lidar(self, lidar_data):
         angles = np.linspace(lidar_data.angle_min, lidar_data.angle_max, len(lidar_data.ranges))
         distances = np.array(lidar_data.ranges)
         distances = np.where(np.isnan(distances), 0, distances)
@@ -253,54 +141,181 @@ class OjbectTrackingNode(Node):
         distances = distances[mask]
         angles = angles[mask]
         
-        oy = -np.cos(angles) * distances
-        ox = np.sin(angles) * distances
+        angles = angles + np.pi
+                
+        oy = np.cos(angles) * distances
+        ox = -np.sin(angles) * distances
         scan = np.column_stack((ox, oy))
-
-        plt.scatter(ox, oy, label=f"Lidar data")
-
-        obstacles = lidar_to_obstacles(scan)
-        trajectories: list[Trajectory] = generate_trajectories(
-            [0, 0],
-            0,
-            self.velocity,
-            self.omega
-        )
         
-        goal = np.array([0,1]) - np.array(self.position)
-        
-        for o in obstacles:
-            o.plot()
-        
-        trajectories[0].plot()
-        
-        print(f"P: {self.position} R: {self.rotation}")
-        print(f"V: {trajectories[0].v} R: {trajectories[0].omega}")
-        
-        
-        #self.steer(trajectories[0].omega)
-        #self.set_speed(-trajectories[0].v / 3)
-        
-        plt.scatter(goal[0], goal[1], marker='*', s=200, c="orange", label="Goal", zorder=5)
-
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.axis("equal")
-        plt.xlabel("X (m)")
-        plt.ylabel("Y (m)")
-        
-        # Dynamically adjust limits or set fixed ones
+        plt.cla()
         plt.grid(True)
+        plt.xlim((3, -3)) # rescale y axis, to match the grid orientation
+        plt.ylim((-3, 3)) # rescale y axis, to match the grid orientation
+        plt.scatter(ox, oy, s=2, c="blue") # lines from 0,0 to the
+        plt.xlabel("X")
+        plt.ylabel("Y")
+
+        plt.pause(0.0001)
+
+ 
+        self.last_laser_scan = scan
+         
+
+    def lidar_callback(self, lidar_data):
+        self.lidar_result = LidarResult(lidar_data)
         
-        plt.pause(0.001)
+        self.dt = time.time() - self.prev_time
+        self.prev_time = time.time()
+        
 
-        self.update_location()
+        self.control.update_lidar(lidar_data)
+        speed, stearing = self.control.get_control_strategy()
+        
+        self.steer(stearing)
+        #self.set_speed(speed)
+        
+        return
+        
+        angles = np.linspace(lidar_data.angle_min, lidar_data.angle_max, len(lidar_data.ranges))
+        distances = np.array(lidar_data.ranges)
+        distances = np.where(np.isnan(distances), 0, distances)
+        distances = np.where(np.isinf(distances), 0, distances)
+        distances = np.where(distances > 3, 0, distances)
+        distances = np.where(distances < 0.1, 0, distances)
+        
+        mask = distances != 0
+        ranges = distances[mask]
+        angles = angles[mask]
+    
+        rot_drift = np.clip(rot_drift, -20, 20)
+    
+        frame_count += 1
+        current_time = frame_count * DT
+
+        # --- Simple Example Control Logic ---
+        # Drive forward, turn slightly left initially, then maybe turn right
+        velocity_cmd = 0.3 # m/s
+        steering_cmd = 0.0 # radians
+        
+        color, (obstacle_distance, obstacle_angle) = detect_block(None)
+
+        if color is not None:
+            print(f"Obstacle ({color}) distance: {obstacle_distance:.2f} m, angle: {math.degrees(obstacle_angle):.1f}°")
 
 
-def main():
-    node = OjbectTrackingNode('object_tracking')
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+        distance_to_front = ranges[round(len(ranges) / 2)]
+        distance_to_left = ranges[-round(len(ranges) / 8)]
+        distance_to_right = ranges[round(len(ranges) / 8)]
+
+        distance_to_left_l = ranges[-round(len(ranges) / 8) + 8]
+        distance_to_left_r = ranges[-round(len(ranges) / 8) - 8]
+
+
+        distance_to_front_l = ranges[round(len(ranges) / 2) + 8]
+        distance_to_front_r = ranges[round(len(ranges) / 2) - 8]
+        
+        distance_to_right_l = ranges[round(len(ranges) / 8) + 8]
+        distance_to_right_r = ranges[round(len(ranges) / 8) - 8]
+        
+        if state == "MOVING":
+            if rot_drift > 1:
+                steering_cmd = -1
+                rot_drift -= 1
+            elif rot_drift < -1:
+                steering_cmd = 1
+                rot_drift += 1
+                    
+            print(f"Moving dist left: {distance_to_left}")
+            if obstacle_distance is not None and obstacle_distance < 0.5:
+                print(f"CHANGING STATE: MOVING -> OBSTACLE_AVOIDANCE")
+                rot_drift /= 3
+                state = "OBSTACLE_AVOIDANCE"
+                steering_cmd = 1
+            
+            elif distance_to_front < 0.8 and obstacle_distance is None and max(distance_to_left, distance_to_left_l, distance_to_left_r) > 0.8 and max(distance_to_right, distance_to_right_l, distance_to_right_r) < 1:
+                print(f"CHANGING STATE: MOVING -> TURNING")
+                state = "TURNING"
+                steering_cmd = 1
+
+        if state == "OBSTACLE_AVOIDANCE":
+            print(f"OBSTACLE_AVOIDANCE: angle={obstacle_angle} distance={obstacle_distance} rot_drift={rot_drift}")
+            if obstacle_distance is None:
+                print(f"CHANGING STATE: OBSTACLE_AVOIDANCE -> MOVING")
+                state = "MOVING"
+                steering_cmd = 0
+            elif obstacle_distance < 0.2 and not ((obstacle_angle > 0.7 and color == "red") or (obstacle_angle < -0.7 and color == "green")):
+                print(f"CHANGING STATE: OBSTACLE_AVOIDANCE -> OBSTACLE_AVOIDANCE_PANIC")
+                state = "OBSTACLE_AVOIDANCE_PANIC"
+            else:
+                if color == "red" and obstacle_angle < 0.7:
+                    steering_cmd = -1
+                    rot_drift -= 1.25
+                elif color == "green" and obstacle_angle > -0.7:
+                    steering_cmd = 1
+                    rot_drift += 1.25
+
+        if state == "OBSTACLE_AVOIDANCE_PANIC":
+            print(f"OBSTACLE_AVOIDANCE_PANIC: angle={obstacle_angle} distance={obstacle_distance} rot_drift={rot_drift}")
+            if obstacle_distance is None:
+                print(f"CHANGING STATE: OBSTACLE_AVOIDANCE_PANIC -> MOVING")
+                state = "MOVING"
+            elif obstacle_distance > 0.5:
+                print(f"CHANGING STATE: OBSTACLE_AVOIDANCE_PANIC -> OBSTACLE_AVOIDANCE")
+                state = "OBSTACLE_AVOIDANCE"
+            else:
+                velocity_cmd = -0.3
+                if obstacle_angle > 0.2:
+                    steering_cmd = 0.2
+                    rot_drift += 0.2
+                elif obstacle_angle < -0.2:
+                    steering_cmd = -0.2
+                    rot_drift -= 0.2
+                
+
+        if state == "TURNING":
+            print(f"TURNING: {prev_dist_front=} {distance_to_front=}")
+            if abs(distance_to_front_r - distance_to_front_l) < 0.15:
+                print(f"CHANGING STATE: TURNING -> MOVING")
+                state = "MOVING"
+                steering_cmd = 0
+            if obstacle_distance is not None and obstacle_distance < 0.5:
+                print(f"CHANGING STATE: TURNING -> OBSTACLE_AVOIDANCE")
+                state = "OBSTACLE_AVOIDANCE"
+                velocity_cmd = 0.3
+            else:
+                steering_cmd = 1
+
+
+        print("Steering command:", math.degrees(steering_cmd))
+        print("Velocity command:", velocity_cmd)
+
+        prev_dist_front = distance_to_front
+
+        self.steer(steering_cmd)
+        self.set_speed(velocity_cmd)        
+        
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = None
+    try:
+        node = OjbectTrackingNode('wro') # Renamed node
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        print("Ctrl+C detected, shutting down.")
+    except Exception as e:
+        raise e
+        if node:
+             node.get_logger().fatal(f"Unhandled exception: {e}")
+        else:
+             print(f"Exception during node creation: {e}")
+    finally:
+        if node:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+        print("Shutdown complete.")
+
 
 if __name__ == "__main__":
     main()
