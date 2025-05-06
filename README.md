@@ -33,8 +33,6 @@ We made the following hardware changes:
 - To comply with WRO rules, one motor was removed, so the drive is now powered by a single motor mechanically coupled to a LEGO differential gear
 - The originally installed 3D camera was replaced with an Intel RealSense D435i to achieve a better performance. The brightness/colors of the original camera were too upredictable and thus not well suited for computer vision
 - The LiDAR sensor was relocated to the front of the vehicle, as the walls are only 10cm high. So the lidar is now at about 5cm above ground, for the highest possible chance to detect all the visible walls.
-- A 9dof imu (Inertial Measurement Unit) was added, that is used for odometry
-- 2 distance ultrasound distance sensors were added at the back. They area also used for odometry
 - A simple push button was added to start the robot
 
 #### Dimensions
@@ -50,20 +48,25 @@ If we solve this equation we arrive at:
 
 $Tolerance\approx +-0.9549\textdegree$
 
-We realized, that this is basically impossible to acchieve with hot glue, we decided to design our own mounting mechanism.
+We realized, that this is basically impossible to achieve with hot glue, we decided to design our own mounting mechanism.
 For this we 3d printed a mount, that can be adjusted using 3 screws.
 
 See following picture:
 
 **TODO** insert picture
 
+With this, we were now able to accurately callibrate the lidar.
+
+
 #### Lego differential
+
+**TODO**: 
 
 ---
 
 ### 3. Software Overview
 
-Our software is based on states based on simple rules.
+Our software works with states based on simple rules.
 See the state machine section for more info.
 
 #### State Machine
@@ -83,23 +86,18 @@ stateDiagram-v2
 
     Parking --> [*]
 ```
+
 **Explanation of the states**:
 
 **Ready**: The state right after powering the robot on. It waits and does nothing until the start button is pressed. Then the robot switches to the moving state.
 
-**Moving**: This is the main state of the robot. Here the robot just uses the lidar data to move around the 3x3 area.
-It is also counting its laps.
+**Moving**: This is the main state of the robot. In this state the robot just uses the lidar data to move around the 3x3 area.
+Whenever the distance of the robot to a wall in front gets below a certain threshold, it changes to the turning state.
 
+**Turning**: In this state, the robot is turning in to the direction, where the wall is farther away.
+As soon as the angle to the wall at the side and the front is close to 90deg, the state changes back to Moving.
 
-#### Driving Strategy and Path Planning
-
-For the Path Planning we used an approach based on the paper "The Dynamic Window Approach to Collision Avoidance"[1].
-
-[1]: https://www.ri.cmu.edu/pub_files/pub1/fox_dieter_1997_1/fox_dieter_1997_1.pdf
 
 #### Obstacle detection with OpenCV
 
----
-
-### 6. Technical Challenges & Solutions
-- Rule-Compliant Drive: Modified the MentorPi A1 to use a single drive motor with a LEGO differential gear.
+**TODO**:
