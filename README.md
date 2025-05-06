@@ -6,7 +6,7 @@
 
 This repository contains all the code and documentation of the WRO Team `RocheReapers`
 
-<img src="images/top_lidar.jpg" alt="top_lidar" width="100"/>
+<img src="images/WRO-RocheReapers.jpg" alt="top_lidar" width="600"/>
 
 **Team Members:**
 * [Robin Küttel](https://github.com/Robinkuet1): [robinkuettel@gmail.com](mailto:robinkuettel@gmail.com) 
