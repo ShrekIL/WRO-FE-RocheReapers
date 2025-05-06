@@ -6,6 +6,8 @@
 
 This repository contains all the code and documentation of the WRO Team `RocheReapers`
 
+<img src="images/top_lidar.jpg" alt="top_lidar" width="100"/>
+
 **Team Members:**
 * [Robin Küttel](https://github.com/Robinkuet1): [robinkuettel@gmail.com](mailto:robinkuettel@gmail.com) 
 * [Guilherme Vercillo Fortes](https://github.com/vercillg)
@@ -53,10 +55,12 @@ For this we 3d printed a mount, that can be adjusted using 3 screws.
 
 See following picture:
 
-**TODO** insert picture
+<img src="images/top_lidar.jpg" alt="top_lidar" width="100"/>
+<img src="images/left_lidar.jpg" alt="left_lidar" width="100"/>
+<img src="images/front_lidar.jpg" alt="front_lidar" width="100"/>
+<img src="images/right_lidar.jpg" alt="right_lidar" width="100"/>
 
 With this, we were now able to accurately callibrate the lidar.
-
 
 #### Lego differential
 
