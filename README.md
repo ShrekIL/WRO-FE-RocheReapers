@@ -106,7 +106,7 @@ See following picture:
 
 ### 3. Software Overview
 
-Our software works with states based on simple rules.
+Our software works based on states that follow simple rules.
 
 See the following diagram for an overview of the possible states:
 ```mermaid
@@ -131,11 +131,15 @@ stateDiagram-v2
 
 **Moving**: This is the main state of the robot. In this state the robot just uses the lidar data to move around the 3x3 area.
 In case a obstace is detected, the robot automatically starts turning into the direction corresponding to the color of the obstacle.
+In case a obstace is detected, the robot automatically starts turning into the direction corresponding to the color of the obstacle.
 Whenever the distance of the robot to a wall in front gets below a certain threshold, it changes to the turning state.
+Whenever the distance of the robot to a obstacle gets below a certain threshold,  
 Whenever the distance of the robot to a obstacle gets below a certain threshold,  
 
 **Turning**: In this state, the robot is turning in to the direction, where the wall is farther away.
 As soon as the angle to the wall at the side and the front is close to 90deg, the state changes back to Moving.
+
+**BackingUp**: In this state, the robot will try to move away from an obstacle while trying to turn a bit, so it is easier to pass the obstace when driving forward again.
 
 **BackingUp**: In this state, the robot will try to move away from an obstacle while trying to turn a bit, so it is easier to pass the obstace when driving forward again.
 
