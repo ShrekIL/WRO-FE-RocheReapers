@@ -57,7 +57,12 @@ We made the following hardware changes:
 
 #### Dimensions
 
-TODO:
+| Parameter | Value              |
+|----------:|--------------------|
+| Weight    | 1.1 kg (on 3 attempts) |
+| Height    | 16.5 cm            |
+| Length    | 28 cm              |
+| Width     | 16.5 cm            |
 
 #### Lidar mounting
 At first we tried to mount the lidar using hot glue. This didn't work well.
