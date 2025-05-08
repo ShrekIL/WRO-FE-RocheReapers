@@ -81,10 +81,10 @@ For this we 3d printed a mount, that can be adjusted using 3 screws.
 See following picture:
 
 <p align="center">
-  <img src="images/LiDAR/top_lidar.jpg" alt="top_lidar" width="100"/>
-  <img src="images/LiDAR/left_lidar.jpg" alt="left_lidar" width="100"/>
-  <img src="images/LiDAR/front_lidar.jpg" alt="front_lidar" width="100"/>
-  <img src="images/LiDAR/right_lidar.jpg" alt="right_lidar" width="100"/>
+  <img src="images/LiDAR/top_lidar.jpg" alt="top_lidar" width="200"/>
+  <img src="images/LiDAR/left_lidar.jpg" alt="left_lidar" width="200"/>
+  <img src="images/LiDAR/front_lidar.jpg" alt="front_lidar" width="200"/>
+  <img src="images/LiDAR/right_lidar.jpg" alt="right_lidar" width="200"/>
 <p>
 
 With this, we were now able to accurately callibrate the lidar.
