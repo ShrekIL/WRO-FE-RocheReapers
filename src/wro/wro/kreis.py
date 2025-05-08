@@ -27,14 +27,6 @@ from nav_msgs.msg import Odometry
 from sklearn.cluster import DBSCAN
 from sklearn.linear_model import RANSACRegressor
 
-from .trajectory import Trajectory
-from .icp import icp
-from .utils import *
-from .block_vison_camera import *
-from .config import config
-from .obstacle import Obstacle
-from .lidar import lidar_to_obstacles
-from .path_planing import generate_trajectories
 
 
 class OjbectTrackingNode(Node):
@@ -59,9 +51,9 @@ class OjbectTrackingNode(Node):
         self.servo_state_pub = self.create_publisher(SetPWMServoState, 'ros_robot_controller/pwm_servo/set_state', 1)
         self.get_logger().info('\033[1;32m%s\033[0m' % 'start')
 
-        self.set_speed(1)
-        self.steer(-1)
-        self.get_logger().info('\033[1;32m%s\033[0m' % 'stopped')
+        self.steer(0)
+        self.set_speed(0.5)
+        
         
     def log(self, msg):
         self.get_logger().info('\033[1;32m%s\033[0m' % msg)
@@ -76,7 +68,7 @@ class OjbectTrackingNode(Node):
         servo_state.position = positions
         data = SetPWMServoState()
         data.state = [servo_state]
-        data.duration = 0.02
+        data.duration = 1 / 333
         self.get_logger().info(f'Publishing servo state: {data}')
         self.servo_state_pub.publish(data)
 
@@ -87,10 +79,14 @@ class OjbectTrackingNode(Node):
         """
         direction = max(-1, min(1, direction))
 
-        max_steer = 600
+        max_steer = 300
         norm_dir = 1500
+        correction = -50
         
-        new_angle = norm_dir + direction * max_steer
+        # smaller = rechts
+        
+        new_angle = norm_dir + direction * -max_steer + correction
+
         
         self.publish_servo_state([int(new_angle)])
         self.get_logger().info(f'Steering to {new_angle}')

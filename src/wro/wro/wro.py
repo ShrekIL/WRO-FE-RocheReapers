@@ -23,7 +23,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy
 
 from .lidar import LidarResult
 from .control import Control
-
+from .start import is_ready
 
 
 
@@ -89,7 +89,7 @@ class OjbectTrackingNode(Node):
         servo_state.position = int_positions # Use integer positions
         data = SetPWMServoState()
         data.state = [servo_state]
-        data.duration = 0.02 # Use float for duration
+        data.duration = 1 / 333 # Use float for duration
         # self.get_logger().info(f'Publishing servo state: {data}') # Can be verbose
         self.servo_state_pub.publish(data)
 
@@ -101,9 +101,13 @@ class OjbectTrackingNode(Node):
 
         self.current_steering_angle = direction
 
-        max_steer_offset = 600 # Servo range offset
+        max_steer_offset = 500 # Servo range offset
         norm_dir_servo = 1500 # Servo center value
-        new_angle_servo = norm_dir_servo + direction * max_steer_offset
+        
+        # more minus = more left
+        correction = 90
+        
+        new_angle_servo = norm_dir_servo + direction * -max_steer_offset + correction
         self.publish_servo_state([int(new_angle_servo)]) # Send command to servo
 
     def set_speed(self, speed):
@@ -120,7 +124,7 @@ class OjbectTrackingNode(Node):
             t = Twist()
             # Use the *intended* velocity for the command, even if MCL uses a slightly different internal value
             # The sign convention might need adjustment based on your controller setup
-            t.linear.x = float(speed) # Send original requested speed value
+            t.linear.x = float(-speed) # Send original requested speed value
             self.mecanum_pub.publish(t)
 
     def image_callback(self, ros_image):
@@ -162,6 +166,10 @@ class OjbectTrackingNode(Node):
          
 
     def lidar_callback(self, lidar_data):
+        if is_ready() == False:
+            return
+        
+        
         self.lidar_result = LidarResult(lidar_data)
         
         self.dt = time.time() - self.prev_time
@@ -171,8 +179,11 @@ class OjbectTrackingNode(Node):
         self.control.update_lidar(lidar_data)
         speed, stearing = self.control.get_control_strategy()
         
-        self.steer(stearing)
         #self.set_speed(speed)
+        #self.steer(stearing)
+        self.steer(-0.5)
+        
+        #self.plot_lidar(lidar_data)
         
         return
         

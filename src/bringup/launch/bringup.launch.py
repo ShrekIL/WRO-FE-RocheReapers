@@ -68,6 +68,13 @@ def launch_setup(context):
         output='screen',
     )
 
+    wro = Node(
+        package='wro',         # <<< CHANGE THIS to your package name
+        executable='start', # <<< CHANGE THIS to your executable name
+        output='screen',
+    )
+
+
     return [
             startup_check_node,
             controller_launch,
@@ -78,6 +85,7 @@ def launch_setup(context):
             start_app_launch,
             joystick_control_launch,
             init_pose_launch,
+            wro
             ]
 
 def generate_launch_description():

@@ -26,15 +26,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from nav_msgs.msg import Odometry
 from sklearn.cluster import DBSCAN
 from sklearn.linear_model import RANSACRegressor
-
-from .trajectory import Trajectory
-from .icp import icp
-from .utils import *
-from .block_vison_camera import *
-from .config import config
-from .obstacle import Obstacle
-from .lidar import lidar_to_obstacles
-from .path_planing import generate_trajectories
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy
 
 
 class OjbectTrackingNode(Node):
@@ -62,7 +54,13 @@ class OjbectTrackingNode(Node):
         self.set_speed(0)
         self.steer(0)
         self.get_logger().info('\033[1;32m%s\033[0m' % 'stopped')
-        
+
+        lidar_qos = QoSProfile(
+             depth=1,
+             reliability=QoSReliabilityPolicy.BEST_EFFORT, # Or RELIABLE
+             durability=QoSDurabilityPolicy.VOLATILE)
+        self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, lidar_qos)
+
     def log(self, msg):
         self.get_logger().info('\033[1;32m%s\033[0m' % msg)
 
@@ -80,6 +78,10 @@ class OjbectTrackingNode(Node):
         self.get_logger().info(f'Publishing servo state: {data}')
         self.servo_state_pub.publish(data)
 
+    def lidar_callback(self, lidar_data):
+        self.set_speed(0)
+        self.steer(0)
+        self.log("Stopped")
 
     def steer(self, direction):
         """

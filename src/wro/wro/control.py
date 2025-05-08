@@ -67,20 +67,18 @@ class Control:
         Returns speed and steering direction
         """
         
-        speed = 0.1
+        speed = 0.5
         stear = 0
         """
         ---------------------------------------
         MOVING Strategy
         ---------------------------------------
         """
-        MIN_DISTANCE_TO_WALL = 0.7
+        MIN_DISTANCE_TO_WALL = 0.8
 
         if self.state == "MOVING":
-            speed = 0.1
             stear = 0
             
-
             """
             Strategy change
             """
@@ -96,12 +94,10 @@ class Control:
         TURNING Strategy
         ---------------------------------------
         """
-        TURN_UNTIL_DISTANCE_GREATER = 1.5
+        TURN_UNTIL_DISTANCE_GREATER = 2
         TURN_UNTIL_ANGLE_SMALLER = 0.2
         
         if self.state == "TURNING":
-            speed = 0.1
-            
             angle_to_dir = 0
             distance_to_dir = 0
             if self.turning_direction == "RIGHT":
@@ -117,9 +113,9 @@ class Control:
             angle_to_front = self.lidar_res.get_angle_to_wall(0)
         
             self.log(f"TURNING: Angle: F:{angle_to_front:.3f} D:{angle_to_dir:.3f} | Distance: F:{med_distance_to_front:.3f} D:{distance_to_dir:.3f}")
-            if abs(angle_to_front) < TURN_UNTIL_ANGLE_SMALLER and abs(angle_to_dir) < TURN_UNTIL_ANGLE_SMALLER and med_distance_to_front > TURN_UNTIL_DISTANCE_GREATER:
+            if med_distance_to_front > TURN_UNTIL_DISTANCE_GREATER:
                 self.change_state("MOVING")
-        
+
         self.log(f"SPEED: {speed} STEAR: {stear}")
         
         return speed, stear
