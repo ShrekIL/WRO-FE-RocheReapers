@@ -59,7 +59,7 @@ We made the following hardware changes:
 
 | Parameter | Value              |
 |----------:|--------------------|
-| Weight    | 1.1 kg (on 3 attempts) |
+| Weight    | 1.2 kg (on 3 attempts) |
 | Height    | 16.5 cm            |
 | Length    | 28 cm              |
 | Width     | 16.5 cm            |
@@ -80,10 +80,12 @@ For this we 3d printed a mount, that can be adjusted using 3 screws.
 
 See following picture:
 
-<img src="images/LiDAR/top_lidar.jpg" alt="top_lidar" width="100"/>
-<img src="images/LiDAR/left_lidar.jpg" alt="left_lidar" width="100"/>
-<img src="images/LiDAR/front_lidar.jpg" alt="front_lidar" width="100"/>
-<img src="images/LiDAR/right_lidar.jpg" alt="right_lidar" width="100"/>
+<p align="center">
+  <img src="images/LiDAR/top_lidar.jpg" alt="top_lidar" width="100"/>
+  <img src="images/LiDAR/left_lidar.jpg" alt="left_lidar" width="100"/>
+  <img src="images/LiDAR/front_lidar.jpg" alt="front_lidar" width="100"/>
+  <img src="images/LiDAR/right_lidar.jpg" alt="right_lidar" width="100"/>
+<p>
 
 With this, we were now able to accurately callibrate the lidar.
 
@@ -95,8 +97,10 @@ Since the vehicle is now powered by a single motor, the use of a differential ge
 
 See following picture:
 
-<img src="images/motor-construct/motor_construct_ontop.jpg" alt="motor_construct_ontop" width="100"/>
-<img src="images/motor-construct/motor_construct_behind.jpg" alt="motor_construct_behind" width="100"/>
+<p align="center">
+  <img src="images/motor-construct/motor_construct_ontop.jpg" alt="motor_construct_ontop" width="300"/>
+  <img src="images/motor-construct/motor_construct_behind.jpg" alt="motor_construct_behind" width="300"/>
+<p>
 
 #### Sensor Overview
 | Component        | Type/Model               | Position on Robot          | Function                                  |
@@ -143,8 +147,6 @@ Whenever the distance of the robot to a obstacle gets below a certain threshold,
 
 **Turning**: In this state, the robot is turning in to the direction, where the wall is farther away.
 As soon as the angle to the wall at the side and the front is close to 90deg, the state changes back to Moving.
-
-**BackingUp**: In this state, the robot will try to move away from an obstacle while trying to turn a bit, so it is easier to pass the obstace when driving forward again.
 
 **BackingUp**: In this state, the robot will try to move away from an obstacle while trying to turn a bit, so it is easier to pass the obstace when driving forward again.
 
