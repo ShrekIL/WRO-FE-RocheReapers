@@ -98,8 +98,8 @@ Since the vehicle is now powered by a single motor, the use of a differential ge
 See following picture:
 
 <p align="center">
-  <img src="images/motor-construct/motor_construct_ontop.jpg" alt="motor_construct_ontop" width="300"/>
-  <img src="images/motor-construct/motor_construct_behind.jpg" alt="motor_construct_behind" width="300"/>
+  <img src="images/motor-construct/motor_construct_ontop.jpg" alt="motor_construct_ontop" width="400"/>
+  <img src="images/motor-construct/motor_construct_behind.jpg" alt="motor_construct_behind" width="400"/>
 <p>
 
 #### Sensor Overview
