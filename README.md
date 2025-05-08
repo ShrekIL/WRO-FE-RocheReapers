@@ -219,8 +219,6 @@ By integrating OpenCV for color-based object detection with the LiDAR for spatia
 
 - **ROS (Robot Operating System):** A flexible framework for writing robot software. It provides a collection of tools, libraries, and conventions that aim to simplify the task of creating complex and robust robot behavior across a wide variety of robotic platforms. ROS often integrates with sensors like the Intel RealSense cameras.
 
-- **CMake:** A cross-platform build system used to control the software compilation process using simple platform and compiler independent configuration files. It generates native makefiles and workspaces that can be used in the compiler environment of your choice.
-
 - **Linux:** A family of open-source Unix-like operating systems. It is known for its flexibility, customizability, and use in various applications, including development and server environments.
 
 - **Windows:** A series of graphical operating systems developed by Microsoft. It is widely used on personal computers and in enterprise environments.
@@ -229,13 +227,22 @@ By integrating OpenCV for color-based object detection with the LiDAR for spatia
 
 **Libraries/SDKs:**
 
-- **Python:** A popular, versatile, and interpreted programming language employed in numerous application areas, ranging from web development and data analysis to artificial intelligence. (Often used with various libraries for specific tasks).
+- **Python:** A versatile and widely-used programming language in robotics for scripting, algorithm development, and integration with sensors and systems.
 
-- **pytest:** A framework for writing small to complex functional testing for Python applications. Used for automated testing of components.
+- **OpenCV (`cv2`):** An open-source computer vision library used for image processing, object detection, and interfacing with camera streams.
 
-- **Library (Lib):** In the context of software, a library is a collection of pre-written code that developers can use to add specific functionalities to their applications without having to write the code from scratch. For Python and RealSense, pyrealsense2 would be an example of such a library.
+- **NumPy:** A powerful library for numerical operations on arrays, commonly used for image and sensor data processing.
 
-- **Intel SDK (Software Development Kit):** A comprehensive set of tools, libraries, documentation, code samples, and processes that allow developers to create software applications for Intel hardware and technologies. In the context of Intel RealSense, this would refer to the **Intel RealSense SDK (librealsense)**, which enables interaction with the cameras.
+- **Matplotlib:** A plotting library used to visualize sensor data, debugging outputs, or robot trajectories during development.
+
+- **pyrealsense2:** Intel’s official Python wrapper for the librealsense SDK, used to interface with RealSense cameras for depth and RGB image capture.
+
+- **librealsense SDK:** A cross-platform library to interact with Intel RealSense cameras, including features like point cloud generation, depth alignment, and sensor fusion.
+
+- **pytest:** A testing framework for writing and running automated tests on Python code, useful for maintaining stable control and perception modules.
+
+- **ROS 2 Message Types & Services:**
+  - `sensor_msgs`, `geometry_msgs`, `std_srvs`, `ros_robot_controller_msgs`: ROS interfaces used for sensor data (e.g., images, laser scans), robot movement (Twist messages), service requests (e.g., enable/disable modules), and PWM servo control.
 
 ### Videos
 
