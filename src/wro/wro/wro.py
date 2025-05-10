@@ -75,8 +75,8 @@ class OjbectTrackingNode(Node):
         self.dt = 0
         self.prev_time = time.time()
         
-#        self.rot_drift = 0
-
+        self.start_time = 0
+        
 
     def log(self, msg):
         self.get_logger().info('\033[1;32m%s\033[0m' % msg)
@@ -169,7 +169,6 @@ class OjbectTrackingNode(Node):
         if is_ready() == False:
             return
         
-        
         self.lidar_result = LidarResult(lidar_data)
         
         self.dt = time.time() - self.prev_time
@@ -179,9 +178,8 @@ class OjbectTrackingNode(Node):
         self.control.update_lidar(lidar_data)
         speed, stearing = self.control.get_control_strategy()
         
-        #self.set_speed(speed)
-        #self.steer(stearing)
-        self.steer(-0.5)
+        self.set_speed(speed)
+        self.steer(stearing)
         
         #self.plot_lidar(lidar_data)
         

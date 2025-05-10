@@ -1,4 +1,6 @@
 # ros uses relative imports
+import sys
+import time
 import numpy as np
 
 
@@ -29,6 +31,8 @@ class Control:
         """
         # RIGHT | LEFT
         self.turning_direction = ""
+        
+        self.time_start = 0
      
     def log(self, msg):
         if self.logger:
@@ -66,6 +70,8 @@ class Control:
         """
         Returns speed and steering direction
         """
+        if self.time_start == 0:
+            self.time_start = time.time()
         
         speed = 0.5
         stear = 0
@@ -113,9 +119,12 @@ class Control:
             angle_to_front = self.lidar_res.get_angle_to_wall(0)
         
             self.log(f"TURNING: Angle: F:{angle_to_front:.3f} D:{angle_to_dir:.3f} | Distance: F:{med_distance_to_front:.3f} D:{distance_to_dir:.3f}")
-            if med_distance_to_front > TURN_UNTIL_DISTANCE_GREATER:
+            if angle_to_front < TURN_UNTIL_ANGLE_SMALLER:
                 self.change_state("MOVING")
 
         self.log(f"SPEED: {speed} STEAR: {stear}")
+        
+        if abs(self.time_start - time.time()) > 52:
+            speed = 0
         
         return speed, stear
